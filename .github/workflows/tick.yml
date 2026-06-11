@@ -29,3 +29,5 @@ jobs:
             "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/trading.yml/dispatches" \
             -d "{\"ref\":\"master\",\"inputs\":{\"mode\":\"$MODE\"}}"
           echo "dispatched $MODE session (cron fallback path)"
+
+# registration nudge
