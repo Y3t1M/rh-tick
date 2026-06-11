@@ -48,5 +48,5 @@ jobs:
           fi
           curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/Y3t1M/rh-tick/actions/workflows/chain.yml/dispatches" \
-            -d '{"ref":"main"}'
+            -d '{"ref":"master"}'
           echo "next link armed"
