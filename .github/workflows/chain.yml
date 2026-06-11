@@ -23,15 +23,14 @@ jobs:
           # next slot in America/Chicago (DST handled by tzdata)
           read -r SECS MODE <<< "$(TZ=America/Chicago python3 - <<'PY'
           import datetime as dt
-          SLOTS = [(7,5,'full'),(8,10,'light'),(9,45,'light'),(11,45,'light'),(13,45,'light'),(14,45,'light')]
+          SLOTS = [({0,1,2,3,4},7,5,'full'),({0,1,2,3,4},8,10,'light'),({0,1,2,3,4},9,45,'light'),({0,1,2,3,4},11,45,'light'),({0,1,2,3,4},13,45,'light'),({0,1,2,3,4},14,45,'light'),({6},2,0,'ltscan')]
           now = dt.datetime.now()
           for probe in range(0, 8*1440):
               t = now + dt.timedelta(minutes=probe)
-              if t.weekday() < 5:
-                  for h,m,mode in SLOTS:
-                      if t.hour == h and t.minute == m and (t - now).total_seconds() > 30:
-                          print(int((t.replace(second=0,microsecond=0) - now).total_seconds()), mode)
-                          raise SystemExit
+              for wd,h,m,mode in SLOTS:
+                  if t.weekday() in wd and t.hour == h and t.minute == m and (t - now).total_seconds() > 30:
+                      print(int((t.replace(second=0,microsecond=0) - now).total_seconds()), mode)
+                      raise SystemExit
           PY
           )"
           MAXSLEEP=19500   # 5h25m — under the job limit; longer gaps chain multiple links
@@ -41,9 +40,15 @@ jobs:
           else
             echo "sleeping ${SECS}s to fire a $MODE session"
             sleep "$SECS"
-            curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/trading.yml/dispatches" \
-              -d "{\"ref\":\"master\",\"inputs\":{\"mode\":\"$MODE\"}}"
+            if [ "$MODE" = "ltscan" ]; then
+              curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/ltscan.yml/dispatches" \
+                -d '{"ref":"master"}'
+            else
+              curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/trading.yml/dispatches" \
+                -d "{\"ref\":\"master\",\"inputs\":{\"mode\":\"$MODE\"}}"
+            fi
             echo "fired $MODE at $(TZ=America/Chicago date)"
           fi
           curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
