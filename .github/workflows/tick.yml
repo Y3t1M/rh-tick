@@ -23,7 +23,7 @@ jobs:
           # if a session run started in the last 6 minutes, the chain beat us — stand down
           RECENT=$(curl -s -H "Authorization: Bearer $T" \
             "https://api.github.com/repos/Y3t1M/rh-agentic/actions/runs?per_page=5" \
-            | python3 -c "import json,sys,datetime as dt; runs=json.load(sys.stdin)['workflow_runs']; now=dt.datetime.now(dt.timezone.utc); print(sum(1 for r in runs if (now-dt.datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))).total_seconds()<360))")
+            | python3 -c "import json,sys,datetime as dt; runs=json.load(sys.stdin)['workflow_runs']; now=dt.datetime.now(dt.timezone.utc); print(sum(1 for r in runs if (now-dt.datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))).total_seconds()<2400))")
           if [ "$RECENT" -gt 0 ]; then echo "chain already fired — exiting"; exit 0; fi
           curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/trading.yml/dispatches" \
