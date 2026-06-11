@@ -1,0 +1,31 @@
+name: tick (cron fallback)
+on:
+  schedule:
+    - cron: '5 12 * * 1-5'
+    - cron: '10 13 * * 1-5'
+    - cron: '45 14,16,18,19 * * 1-5'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: tick
+  cancel-in-progress: false
+jobs:
+  fire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch trading session (skip if chain already fired this slot)
+        env:
+          T: ${{ secrets.RH_DISPATCH_TOKEN }}
+        run: |
+          H=$(date -u +%H)
+          MODE=light; [ "$H" -lt 13 ] && MODE=full
+          # if a session run started in the last 6 minutes, the chain beat us — stand down
+          RECENT=$(curl -s -H "Authorization: Bearer $T" \
+            "https://api.github.com/repos/Y3t1M/rh-agentic/actions/runs?per_page=5" \
+            | python3 -c "import json,sys,datetime as dt; runs=json.load(sys.stdin)['workflow_runs']; now=dt.datetime.now(dt.timezone.utc); print(sum(1 for r in runs if (now-dt.datetime.fromisoformat(r['created_at'].replace('Z','+00:00'))).total_seconds()<360))")
+          if [ "$RECENT" -gt 0 ]; then echo "chain already fired — exiting"; exit 0; fi
+          curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/trading.yml/dispatches" \
+            -d "{\"ref\":\"master\",\"inputs\":{\"mode\":\"$MODE\"}}"
+          echo "dispatched $MODE session (cron fallback path)"

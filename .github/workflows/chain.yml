@@ -1,0 +1,52 @@
+name: chain (precision sleeper)
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  sleep-and-fire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Become the only chain link
+        env:
+          T: ${{ secrets.RH_DISPATCH_TOKEN }}
+        run: |
+          OTHERS=$(curl -s -H "Authorization: Bearer $T" \
+            "https://api.github.com/repos/Y3t1M/rh-tick/actions/workflows/chain.yml/runs?status=in_progress&per_page=10" \
+            | python3 -c "import json,sys; rs=json.load(sys.stdin)['workflow_runs']; print(sum(1 for r in rs if r['id'] != ${{ github.run_id }}))")
+          if [ "$OTHERS" -gt 0 ]; then echo "another chain link is alive — this one dissolves"; echo "DUP=1" >> "$GITHUB_ENV"; fi
+      - name: Sleep to the next slot, fire, re-arm
+        if: env.DUP != '1'
+        env:
+          T: ${{ secrets.RH_DISPATCH_TOKEN }}
+        run: |
+          # next slot in America/Chicago (DST handled by tzdata)
+          read -r SECS MODE <<< "$(TZ=America/Chicago python3 - <<'PY'
+          import datetime as dt
+          SLOTS = [(7,5,'full'),(8,10,'light'),(9,45,'light'),(11,45,'light'),(13,45,'light'),(14,45,'light')]
+          now = dt.datetime.now()
+          for probe in range(0, 8*1440):
+              t = now + dt.timedelta(minutes=probe)
+              if t.weekday() < 5:
+                  for h,m,mode in SLOTS:
+                      if t.hour == h and t.minute == m and (t - now).total_seconds() > 30:
+                          print(int((t.replace(second=0,microsecond=0) - now).total_seconds()), mode)
+                          raise SystemExit
+          PY
+          )"
+          MAXSLEEP=19500   # 5h25m — under the job limit; longer gaps chain multiple links
+          if [ "$SECS" -gt "$MAXSLEEP" ]; then
+            echo "next slot ${SECS}s away — sleeping ${MAXSLEEP}s then re-arming"
+            sleep "$MAXSLEEP"
+          else
+            echo "sleeping ${SECS}s to fire a $MODE session"
+            sleep "$SECS"
+            curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/Y3t1M/rh-agentic/actions/workflows/trading.yml/dispatches" \
+              -d "{\"ref\":\"master\",\"inputs\":{\"mode\":\"$MODE\"}}"
+            echo "fired $MODE at $(TZ=America/Chicago date)"
+          fi
+          curl -sf -X POST -H "Authorization: Bearer $T" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/Y3t1M/rh-tick/actions/workflows/chain.yml/dispatches" \
+            -d '{"ref":"main"}'
+          echo "next link armed"
